@@ -46,11 +46,16 @@ public class ProjectResource {
         globalModel.setTee(Files.readAllBytes(Paths.get(modelPath + "/mnist_lenet_pp68.weights_tee")));
 
         var project = new Project();
+        project.setMaxRounds(10);
+        project.setBufferSize(3);
         projectDao.save(project);
+        project.setName("proj" + project.getId());
 
+        projectDao.save(project);
         modelDao.save(globalModel);
         var newTask = new Task();
         newTask.setProject(project);
+        newTask.setRound(project.getRound());
         newTask.setTaskType(TaskType.TRAINING);
         newTask.getInputModels().add(globalModel);
         taskDao.save(newTask);

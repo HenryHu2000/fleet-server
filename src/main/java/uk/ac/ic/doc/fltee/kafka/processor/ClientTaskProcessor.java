@@ -47,8 +47,8 @@ public class ClientTaskProcessor {
     @Incoming("done-tasks")
     @Blocking
     @Transactional
-    public Task process(Task completedTask) throws InterruptedException, IOException {
-        var supertaskOptional = taskDao.findById(completedTask.getSupertask().getId());
+    public Task process(Task subtask) throws InterruptedException, IOException {
+        var supertaskOptional = taskDao.findById(subtask.getSupertask().getId());
         if (supertaskOptional.isPresent()) {
             var supertask = supertaskOptional.get();
             var project = supertask.getProject();
@@ -56,35 +56,39 @@ public class ClientTaskProcessor {
                 modelBufferMap.put(project, new ArrayDeque<>());
             }
             var modelBuffer = modelBufferMap.get(project);
-            completedTask.getOutputModels().forEach(outputModel -> {
+            subtask.getOutputModels().forEach(outputModel -> {
                 modelDao.save(outputModel);
                 modelBuffer.offer(outputModel);
             });
             supertask.setTaskStatus(TaskStatus.RUNNING);
-            supertask.getOutputModels().addAll(completedTask.getOutputModels());
+            supertask.getOutputModels().addAll(subtask.getOutputModels());
             taskDao.save(supertask);
-            completedTask.setProject(project);
-            completedTask.setSupertask(supertask);
-            completedTask.getInputModels().addAll(supertask.getInputModels());
-            taskDao.save(completedTask);
+            subtask.setProject(project);
+            subtask.setSupertask(supertask);
+            subtask.setRound(supertask.getRound());
+            subtask.getInputModels().addAll(supertask.getInputModels());
+            taskDao.save(subtask);
 
-            if (modelBuffer.size() >= flteeProperties.bufferSize()) {
+            // Aggregation
+            if (project.getRound() < project.getMaxRounds() - 1 && modelBuffer.size() >= project.getBufferSize()) {
                 var i = 0;
+                String projectPath = '/' + project.getName() + '/';
                 while (!modelBuffer.isEmpty()) {
                     var model = modelBuffer.poll();
-                    var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/client_updates_standard_ss/mnist_lenet_c" + i + ".weights/";
+                    var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/" + projectPath + "/mnist_lenet_c" + i + ".weights/";
                     Files.createDirectories(Paths.get(modelPath));
                     Files.write(Paths.get(modelPath + "/_ree"), model.getRee());
                     Files.write(Paths.get(modelPath + "/_tee"), model.getTee());
                     i++;
                 }
                 ProcessBuilder pb = new ProcessBuilder(
-                      "host/secure_aggregation_host server model_aggregation -pp_start 6 -pp_end 8 -ss 1 cfg/mnist_lenet.cfg ./results/mnist/client_updates_standard_ss/".split(" "));
+                        ("host/secure_aggregation_host server model_aggregation -pp_start 6 -pp_end 8 -ss 1 cfg/mnist_lenet.cfg ./results/mnist/"
+                                + projectPath).split(" "));
                 pb.directory(new File(flteeProperties.aggregatorPath()));
                 var process = pb.start();
                 LOG.info(new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
                 process.waitFor();
-                var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/client_updates_standard_ss/";
+                var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/" + projectPath;
                 var globalModel = new Model();
                 var avgReeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_ree");
                 var avgTeeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_tee");
@@ -93,17 +97,20 @@ public class ClientTaskProcessor {
                 Files.delete(avgReeFile);
                 Files.delete(avgTeeFile);
 
+                project.setRound(project.getRound() + 1);
+
+                projectDao.save(project);
                 modelDao.save(globalModel);
                 var newTask = new Task();
                 newTask.setProject(project);
+                newTask.setRound(project.getRound());
                 newTask.setTaskType(TaskType.TRAINING);
                 newTask.getInputModels().add(globalModel);
                 taskDao.save(newTask);
                 newTask.getProject().setTasks(null);
                 taskEmitter.send(newTask);
-
             }
         }
-        return completedTask;
+        return subtask;
     }
 }

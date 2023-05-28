@@ -15,6 +15,12 @@ public class Project {
     private String name;
     @OneToMany(mappedBy = "project")
     private List<Task> tasks;
+    @Column(name = "round")
+    private Integer round = 0;
+    @Column(name = "max_rounds")
+    private Integer maxRounds;
+    @Column(name = "buffer_size")
+    private Integer bufferSize;
 
     public Project() {
       tasks = new ArrayList<>();
@@ -42,6 +48,30 @@ public class Project {
 
     public void setTasks(List<Task> tasks) {
         this.tasks = tasks;
+    }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
+    }
+
+    public Integer getMaxRounds() {
+        return maxRounds;
+    }
+
+    public void setMaxRounds(Integer maxRounds) {
+        this.maxRounds = maxRounds;
+    }
+
+    public Integer getBufferSize() {
+        return bufferSize;
+    }
+
+    public void setBufferSize(Integer bufferSize) {
+        this.bufferSize = bufferSize;
     }
 
     @Override

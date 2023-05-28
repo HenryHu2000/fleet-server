@@ -42,6 +42,8 @@ public class Task {
             joinColumns = @JoinColumn(name = "task_id"),
             inverseJoinColumns = @JoinColumn(name = "model_id"))
     private List<Model> outputModels;
+    @Column(name = "round")
+    private Integer round;
 
     public Task() {
         subtasks = new ArrayList<>();
@@ -136,6 +138,15 @@ public class Task {
     public void setOutputModels(List<Model> outputModels) {
         this.outputModels = outputModels;
     }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
