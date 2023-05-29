@@ -43,9 +43,21 @@ public class TaskService implements ITaskService {
     @Transactional
     public Optional<Task> processClientTask(Task clientSubtask) {
         var supertaskOptional = taskDao.findById(clientSubtask.getSupertask().getId());
-        if (supertaskOptional.isPresent()) {
+        if (supertaskOptional.isPresent() && supertaskOptional.get().getProject().getStatus().equals(Status.RUNNING)) {
             var clientSupertask = supertaskOptional.get();
             var project = clientSupertask.getProject();
+            if (project.getRound() >= project.getMaxRounds()) {
+                project.setStatus(Status.COMPLETED);
+                projectDao.save(project);
+                for (var task: project.getTasks()) {
+                    if (task.getStatus().equals(Status.RUNNING)) {
+                        task.setStatus(Status.COMPLETED);
+                        taskDao.save(task);
+                    }
+                }
+                return Optional.empty();
+            }
+
             if (!modelBufferMap.containsKey(project)) {
                 modelBufferMap.put(project, new ArrayDeque<>());
             }
@@ -54,7 +66,6 @@ public class TaskService implements ITaskService {
                 modelDao.save(outputModel);
                 modelBuffer.offer(outputModel);
             });
-            clientSupertask.setStatus(Status.RUNNING);
             clientSupertask.getOutputModels().addAll(clientSubtask.getOutputModels());
             taskDao.save(clientSupertask);
             clientSubtask.setProject(project);
@@ -63,7 +74,7 @@ public class TaskService implements ITaskService {
             clientSubtask.getInputModels().addAll(clientSupertask.getInputModels());
             taskDao.save(clientSubtask);
 
-            if (project.getRound() < project.getMaxRounds() - 1 && modelBuffer.size() >= project.getBufferSize()) {
+            if (modelBuffer.size() >= project.getBufferSize()) {
                 var serverTask = new Task();
                 serverTask.setProject(project);
                 serverTask.setRound(project.getRound());
@@ -73,8 +84,9 @@ public class TaskService implements ITaskService {
                     serverTask.getInputModels().add(model);
                 }
                 taskDao.save(serverTask);
-                serverTask.getProject().setTasks(null);
-                serverTask.getProject().setCurrentModel(null);
+                var dummyProject = new Project();
+                dummyProject.setId(project.getId());
+                serverTask.setProject(dummyProject);
                 return Optional.of(serverTask);
             }
         }
@@ -85,7 +97,7 @@ public class TaskService implements ITaskService {
     @Transactional
     public Optional<Task> processServerTask(Task serverTask) throws IOException, InterruptedException {
         var projectOptional = projectDao.findById(serverTask.getProject().getId());
-        if (projectOptional.isPresent()) {
+        if (projectOptional.isPresent() && projectOptional.get().getStatus().equals(Status.RUNNING)) {
             var project = projectOptional.get();
             String projectPath = '/' + project.getName() + '/';
             var inputModels = serverTask.getInputModels();
@@ -113,6 +125,7 @@ public class TaskService implements ITaskService {
             Files.delete(avgTeeFile);
 
             modelDao.save(globalModel);
+            serverTask.setProject(project);
             serverTask.setStatus(Status.COMPLETED);
             serverTask.getOutputModels().add(globalModel);
             taskDao.save(serverTask);
@@ -122,16 +135,16 @@ public class TaskService implements ITaskService {
 
             var newTask = buildTask(project, globalModel);
             taskDao.save(newTask);
-
-            newTask.getProject().setTasks(null);
-            newTask.getProject().setCurrentModel(null);
+            var dummyProject = new Project();
+            dummyProject.setId(project.getId());
+            newTask.setProject(dummyProject);
             return Optional.of(newTask);
         }
         return Optional.empty();
     }
 
     @Transactional
-    public Optional<Task> createClientTask() throws IOException {
+    public Optional<Task> createClientTask(int maxRounds, int bufferSize) throws IOException {
         var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/";
         var globalModel = new Model();
         globalModel.setRee(Files.readAllBytes(Paths.get(modelPath + "/mnist_lenet_pp68.weights_ree")));
@@ -139,10 +152,12 @@ public class TaskService implements ITaskService {
         modelDao.save(globalModel);
 
         var project = new Project();
-        project.setMaxRounds(10);
-        project.setBufferSize(3);
-        project.setName("proj" + project.getId());
+        project.setMaxRounds(maxRounds);
+        project.setBufferSize(bufferSize);
         project.setCurrentModel(globalModel);
+        project.setStatus(Status.RUNNING);
+        projectDao.save(project);
+        project.setName("proj" + project.getId());
         projectDao.save(project);
 
         var newTask = buildTask(project, globalModel);
@@ -156,6 +171,7 @@ public class TaskService implements ITaskService {
         task.setProject(project);
         task.setRound(project.getRound());
         task.setTaskType(TaskType.TRAINING);
+        task.setStatus(Status.RUNNING);
         task.getInputModels().add(model);
         return task;
     }

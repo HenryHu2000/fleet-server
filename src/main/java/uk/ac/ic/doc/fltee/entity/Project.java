@@ -24,6 +24,8 @@ public class Project {
     @OneToOne
     @JoinColumn(name = "current_model_id", referencedColumnName = "id")
     private Model currentModel;
+    @Column(name = "status")
+    private Status status = Status.CREATED;
 
     public Project() {
       tasks = new ArrayList<>();
@@ -85,6 +87,14 @@ public class Project {
         this.currentModel = currentModel;
     }
 
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -97,5 +107,4 @@ public class Project {
     public int hashCode() {
         return Objects.hash(id);
     }
-
 }

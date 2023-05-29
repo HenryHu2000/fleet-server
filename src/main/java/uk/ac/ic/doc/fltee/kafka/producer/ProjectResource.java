@@ -1,6 +1,7 @@
 package uk.ac.ic.doc.fltee.kafka.producer;
 
 import jakarta.inject.Inject;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -33,12 +34,15 @@ public class ProjectResource {
     @POST
     @Path("/create")
     @Produces(MediaType.TEXT_PLAIN)
-    public String createRequest() throws IOException {
-        var taskOptional = taskService.createClientTask();
-        if (taskOptional.isPresent()) {
-            var newTask = taskOptional.get();
-            taskEmitter.send(newTask);
-            return newTask.getProject().getId().toString();
+    public String createRequest(@FormParam("max_rounds") Integer maxRounds,
+                                @FormParam("buffer_size") Integer bufferSize) throws IOException {
+        if (maxRounds != null && bufferSize != null) {
+            var taskOptional = taskService.createClientTask(maxRounds, bufferSize);
+            if (taskOptional.isPresent()) {
+                var newTask = taskOptional.get();
+                taskEmitter.send(newTask);
+                return newTask.getProject().getId().toString();
+            }
         }
         return "";
     }
