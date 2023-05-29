@@ -22,8 +22,8 @@ public class Task {
     private Date dateModified;
     @Column(name = "task_type")
     private TaskType taskType;
-    @Column(name = "task_status")
-    private TaskStatus taskStatus = TaskStatus.CREATED;
+    @Column(name = "status")
+    private Status status = Status.CREATED;
     @ManyToOne
     private Project project;
     @ManyToOne
@@ -91,12 +91,12 @@ public class Task {
         this.taskType = taskType;
     }
 
-    public TaskStatus getTaskStatus() {
-        return taskStatus;
+    public Status getTaskStatus() {
+        return status;
     }
 
-    public void setTaskStatus(TaskStatus taskStatus) {
-        this.taskStatus = taskStatus;
+    public void setTaskStatus(Status status) {
+        this.status = status;
     }
 
     public Project getProject() {

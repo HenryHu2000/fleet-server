@@ -21,6 +21,9 @@ public class Project {
     private Integer maxRounds;
     @Column(name = "buffer_size")
     private Integer bufferSize;
+    @OneToOne
+    @JoinColumn(name = "current_model_id", referencedColumnName = "id")
+    private Model currentModel;
 
     public Project() {
       tasks = new ArrayList<>();
@@ -74,6 +77,14 @@ public class Project {
         this.bufferSize = bufferSize;
     }
 
+    public Model getCurrentModel() {
+        return currentModel;
+    }
+
+    public void setCurrentModel(Model currentModel) {
+        this.currentModel = currentModel;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -86,4 +97,5 @@ public class Project {
     public int hashCode() {
         return Objects.hash(id);
     }
+
 }

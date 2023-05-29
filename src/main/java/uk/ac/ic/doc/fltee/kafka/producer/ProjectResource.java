@@ -17,6 +17,7 @@ import uk.ac.ic.doc.fltee.entity.Model;
 import uk.ac.ic.doc.fltee.entity.Project;
 import uk.ac.ic.doc.fltee.entity.Task;
 import uk.ac.ic.doc.fltee.entity.TaskType;
+import uk.ac.ic.doc.fltee.service.ITaskService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,44 +25,21 @@ import java.nio.file.Paths;
 
 @Path("/projects")
 public class ProjectResource {
-    private static final Logger LOG = Logger.getLogger(ProjectResource.class);
     @Inject
-    private FlteeProperties flteeProperties;
-    @Inject
-    private ModelDao modelDao;
-    @Inject
-    private ProjectDao projectDao;
-    @Inject
-    private TaskDao taskDao;
-    @Channel("todo-tasks")
+    private ITaskService taskService;
+    @Channel("client-todo-tasks")
     private Emitter<Task> taskEmitter;
 
     @POST
     @Path("/create")
     @Produces(MediaType.TEXT_PLAIN)
     public String createRequest() throws IOException {
-        var modelPath = flteeProperties.aggregatorPath() + "/results/mnist/";
-        var globalModel = new Model();
-        globalModel.setRee(Files.readAllBytes(Paths.get(modelPath + "/mnist_lenet_pp68.weights_ree")));
-        globalModel.setTee(Files.readAllBytes(Paths.get(modelPath + "/mnist_lenet_pp68.weights_tee")));
-
-        var project = new Project();
-        project.setMaxRounds(10);
-        project.setBufferSize(3);
-        projectDao.save(project);
-        project.setName("proj" + project.getId());
-
-        projectDao.save(project);
-        modelDao.save(globalModel);
-        var newTask = new Task();
-        newTask.setProject(project);
-        newTask.setRound(project.getRound());
-        newTask.setTaskType(TaskType.TRAINING);
-        newTask.getInputModels().add(globalModel);
-        taskDao.save(newTask);
-        newTask.getProject().setTasks(null);
-        taskEmitter.send(newTask);
-
-        return project.getId().toString();
+        var taskOptional = taskService.createClientTask();
+        if (taskOptional.isPresent()) {
+            var newTask = taskOptional.get();
+            taskEmitter.send(newTask);
+            return newTask.getProject().getId().toString();
+        }
+        return "";
     }
 }
