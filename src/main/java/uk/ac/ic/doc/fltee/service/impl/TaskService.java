@@ -54,7 +54,7 @@ public class TaskService implements ITaskService {
                 modelDao.save(outputModel);
                 modelBuffer.offer(outputModel);
             });
-            clientSupertask.setTaskStatus(Status.RUNNING);
+            clientSupertask.setStatus(Status.RUNNING);
             clientSupertask.getOutputModels().addAll(clientSubtask.getOutputModels());
             taskDao.save(clientSupertask);
             clientSubtask.setProject(project);
@@ -113,7 +113,7 @@ public class TaskService implements ITaskService {
             Files.delete(avgTeeFile);
 
             modelDao.save(globalModel);
-            serverTask.setTaskStatus(Status.COMPLETED);
+            serverTask.setStatus(Status.COMPLETED);
             serverTask.getOutputModels().add(globalModel);
             taskDao.save(serverTask);
             project.setRound(project.getRound() + 1);

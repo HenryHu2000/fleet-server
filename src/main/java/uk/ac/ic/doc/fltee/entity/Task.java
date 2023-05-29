@@ -91,11 +91,11 @@ public class Task {
         this.taskType = taskType;
     }
 
-    public Status getTaskStatus() {
+    public Status getStatus() {
         return status;
     }
 
-    public void setTaskStatus(Status status) {
+    public void setStatus(Status status) {
         this.status = status;
     }
 
