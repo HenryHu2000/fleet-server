@@ -1,5 +1,6 @@
 package uk.ac.ic.doc.fltee.service.impl;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.arc.Lock;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -39,6 +40,8 @@ public class TaskService implements ITaskService {
     private Map<Project, Queue<Model>> modelBufferMap;
     @Inject
     private FlteeProperties flteeProperties;
+    @Inject
+    MeterRegistry registry;
 
     @Transactional
     public Optional<Task> processClientTask(Task clientSubtask) {
