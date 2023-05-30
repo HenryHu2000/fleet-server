@@ -1,4 +1,4 @@
-package uk.ac.ic.doc.fltee.kafka.serialization;
+package uk.ac.ic.doc.fltee.serialization;
 
 import io.quarkus.kafka.client.serialization.ObjectMapperDeserializer;
 import uk.ac.ic.doc.fltee.entity.Task;

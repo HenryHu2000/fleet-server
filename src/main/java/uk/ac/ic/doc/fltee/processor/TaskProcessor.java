@@ -1,4 +1,4 @@
-package uk.ac.ic.doc.fltee.kafka.processor;
+package uk.ac.ic.doc.fltee.processor;
 
 import jakarta.enterprise.context.ApplicationScoped;
 

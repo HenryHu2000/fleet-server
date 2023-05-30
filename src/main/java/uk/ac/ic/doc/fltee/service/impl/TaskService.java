@@ -45,6 +45,9 @@ public class TaskService implements ITaskService {
 
     @Transactional
     public Optional<Task> processClientTask(Task clientSubtask) {
+        if (clientSubtask.getSupertask() == null) {
+            return Optional.empty();
+        }
         var supertaskOptional = taskDao.findById(clientSubtask.getSupertask().getId());
         if (supertaskOptional.isPresent() && supertaskOptional.get().getProject().getStatus().equals(Status.RUNNING)) {
             var clientSupertask = supertaskOptional.get();
@@ -87,9 +90,9 @@ public class TaskService implements ITaskService {
                     serverTask.getInputModels().add(model);
                 }
                 taskDao.save(serverTask);
-                var dummyProject = new Project();
-                dummyProject.setId(project.getId());
-                serverTask.setProject(dummyProject);
+                var projectDto = new Project();
+                projectDto.setId(project.getId());
+                serverTask.setProject(projectDto);
                 return Optional.of(serverTask);
             }
         }
@@ -99,6 +102,9 @@ public class TaskService implements ITaskService {
     @Lock(value = Lock.Type.WRITE)
     @Transactional
     public Optional<Task> processServerTask(Task serverTask) throws IOException, InterruptedException {
+        if (serverTask.getProject() == null) {
+            return Optional.empty();
+        }
         var projectOptional = projectDao.findById(serverTask.getProject().getId());
         if (projectOptional.isPresent() && projectOptional.get().getStatus().equals(Status.RUNNING)) {
             var project = projectOptional.get();
@@ -138,9 +144,9 @@ public class TaskService implements ITaskService {
 
             var newTask = buildTask(project, globalModel);
             taskDao.save(newTask);
-            var dummyProject = new Project();
-            dummyProject.setId(project.getId());
-            newTask.setProject(dummyProject);
+            var projectDto = new Project();
+            projectDto.setId(project.getId());
+            newTask.setProject(projectDto);
             return Optional.of(newTask);
         }
         return Optional.empty();
