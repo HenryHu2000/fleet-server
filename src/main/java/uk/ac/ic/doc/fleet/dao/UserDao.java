@@ -5,4 +5,5 @@ import uk.ac.ic.doc.fleet.entity.User;
 
 public interface UserDao extends JpaRepository<User, Long> {
     boolean existsByUsername(String username);
+    User findUserByUsername(String username);
 }

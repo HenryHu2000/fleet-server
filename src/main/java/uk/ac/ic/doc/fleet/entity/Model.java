@@ -92,6 +92,7 @@ public class Model {
     public void setTee(byte[] tee) {
         this.tee = tee;
     }
+
     public List<Task> getConsumerTasks() {
         return consumerTasks;
     }

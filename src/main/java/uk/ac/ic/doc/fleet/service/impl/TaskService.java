@@ -9,9 +9,7 @@ import jakarta.transaction.Transactional;
 
 import org.jboss.logging.Logger;
 import uk.ac.ic.doc.fleet.config.FleetProperties;
-import uk.ac.ic.doc.fleet.dao.ModelDao;
-import uk.ac.ic.doc.fleet.dao.ProjectDao;
-import uk.ac.ic.doc.fleet.dao.TaskDao;
+import uk.ac.ic.doc.fleet.dao.*;
 import uk.ac.ic.doc.fleet.entity.*;
 
 import java.io.File;
@@ -37,6 +35,10 @@ public class TaskService implements ITaskService {
     @Inject
     private TaskDao taskDao;
     @Inject
+    private UserDao userDao;
+    @Inject
+    private DeviceDao deviceDao;
+    @Inject
     private Map<Project, Queue<Model>> modelBufferMap;
     @Inject
     private FleetProperties fleetProperties;
@@ -61,6 +63,22 @@ public class TaskService implements ITaskService {
                         taskDao.save(task);
                     }
                 }
+                return Optional.empty();
+            }
+
+            var userOptional = userDao.findById(clientSubtask.getUser().getId());
+            if (!userOptional.isPresent()) {
+                return Optional.empty();
+            }
+            var user = userOptional.get();
+            clientSubtask.setUser(user);
+            var deviceOptional = deviceDao.findById(clientSubtask.getDevice().getId());
+            var device = clientSubtask.getDevice();
+            if (deviceOptional.isPresent()) {
+                device.setVersion(deviceOptional.get().getVersion());
+            }
+            deviceDao.save(device);
+            if (user.getSecurityLevel() < project.getMinUserLevel() || device.getSecurityLevel() < project.getMinDeviceLevel()) {
                 return Optional.empty();
             }
 
@@ -153,7 +171,7 @@ public class TaskService implements ITaskService {
     }
 
     @Transactional
-    public Optional<Task> createClientTask(int maxRounds, int bufferSize) throws IOException {
+    public Optional<Task> createClientTask(int maxRounds, int bufferSize, int minUserLevel, int minDeviceLevel) throws IOException {
         var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/";
         var globalModel = new Model();
         globalModel.setRee(Files.readAllBytes(Paths.get(modelPath + "/mnist_lenet_pp68.weights_ree")));
@@ -163,6 +181,8 @@ public class TaskService implements ITaskService {
         var project = new Project();
         project.setMaxRounds(maxRounds);
         project.setBufferSize(bufferSize);
+        project.setMinUserLevel(minUserLevel);
+        project.setMinDeviceLevel(minDeviceLevel);
         project.setCurrentModel(globalModel);
         project.setStatus(Status.RUNNING);
         projectDao.save(project);

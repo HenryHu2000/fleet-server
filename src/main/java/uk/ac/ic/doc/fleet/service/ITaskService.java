@@ -10,5 +10,5 @@ public interface ITaskService {
 
     Optional<Task> processServerTask(Task serverTask) throws IOException, InterruptedException;
 
-    Optional<Task> createClientTask(int maxRounds, int bufferSize) throws IOException;
+    Optional<Task> createClientTask(int maxRounds, int bufferSize, int minUserLevel, int minDeviceLevel) throws IOException;
 }

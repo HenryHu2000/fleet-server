@@ -37,6 +37,10 @@ public class Project implements Cloneable {
     private Model currentModel;
     @Column(name = "status")
     private Status status = Status.CREATED;
+    @Column(name = "min_user_level")
+    private Integer minUserLevel = 0;
+    @Column(name = "min_device_level")
+    private Integer minDeviceLevel = 0;
 
     public Project() {
       tasks = new ArrayList<>();
@@ -106,6 +110,22 @@ public class Project implements Cloneable {
         this.status = status;
     }
 
+    public Integer getMinUserLevel() {
+        return minUserLevel;
+    }
+
+    public void setMinUserLevel(Integer minUserLevel) {
+        this.minUserLevel = minUserLevel;
+    }
+
+    public Integer getMinDeviceLevel() {
+        return minDeviceLevel;
+    }
+
+    public void setMinDeviceLevel(Integer minDeviceLevel) {
+        this.minDeviceLevel = minDeviceLevel;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -123,4 +143,5 @@ public class Project implements Cloneable {
     public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }
+
 }

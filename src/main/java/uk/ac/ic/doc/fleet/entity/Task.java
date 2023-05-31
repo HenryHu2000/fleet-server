@@ -30,6 +30,11 @@ public class Task {
     private Task supertask;
     @OneToMany(mappedBy = "supertask")
     private List<Task> subtasks;
+    @ManyToOne
+    private User user;
+    @ManyToOne
+    private Device device;
+
     @ManyToMany
     @JoinTable(
             name = "task_input",
@@ -147,6 +152,22 @@ public class Task {
         this.round = round;
     }
 
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public Device getDevice() {
+        return device;
+    }
+
+    public void setDevice(Device device) {
+        this.device = device;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -159,4 +180,5 @@ public class Task {
     public int hashCode() {
         return Objects.hash(id);
     }
+
 }

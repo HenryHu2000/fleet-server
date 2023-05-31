@@ -18,5 +18,6 @@ public class Startup {
     @Transactional
     public void loadUsers(@Observes StartupEvent evt) {
         userDao.save(new User("admin", "admin", "admin"));
+        userDao.save(new User("user", "user", "user"));
     }
 }

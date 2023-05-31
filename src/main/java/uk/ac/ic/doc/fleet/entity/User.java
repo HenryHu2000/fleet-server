@@ -10,6 +10,8 @@ import io.quarkus.security.jpa.Roles;
 import io.quarkus.security.jpa.UserDefinition;
 import io.quarkus.security.jpa.Username;
 
+import java.util.List;
+
 @Entity
 @Table(name = "app_user")
 @UserDefinition
@@ -19,7 +21,7 @@ public class User implements Cloneable {
     @Column(name = "id")
     private Long id;
     @Username
-    @Column(name = "username")
+    @Column(name = "username", unique = true)
     private String username;
     @Password
     @Column(name = "password")
@@ -27,8 +29,12 @@ public class User implements Cloneable {
     @Roles
     @Column(name = "role")
     private String role;
+    @Column(name = "security_level")
+    private Integer securityLevel = 1;
     @Column(name = "score")
     private Double score = 0.0;
+    @OneToMany(mappedBy = "user")
+    private List<Task> tasks;
 
     public User() {
     }
@@ -77,6 +83,14 @@ public class User implements Cloneable {
         this.role = role;
     }
 
+    public Integer getSecurityLevel() {
+        return securityLevel;
+    }
+
+    public void setSecurityLevel(Integer securityLevel) {
+        this.securityLevel = securityLevel;
+    }
+
     public Double getScore() {
         return score;
     }
@@ -85,8 +99,17 @@ public class User implements Cloneable {
         this.score = score;
     }
 
+    public List<Task> getTasks() {
+        return tasks;
+    }
+
+    public void setTasks(List<Task> tasks) {
+        this.tasks = tasks;
+    }
+
     @Override
     public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }
+
 }

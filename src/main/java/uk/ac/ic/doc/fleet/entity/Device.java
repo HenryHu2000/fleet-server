@@ -15,9 +15,9 @@ public class Device {
     @Column(name = "mac_address")
     private String macAddress;
     @Column(name = "security_level")
-    private Integer securityLevel = 0;
-    @Column(name = "score")
-    private Double score = 0.0;
+    private Integer securityLevel;
+    @OneToMany(mappedBy = "device")
+    private List<Task> tasks;
 
     public UUID getId() {
         return id;
@@ -25,6 +25,14 @@ public class Device {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 
     public String getMacAddress() {
@@ -43,12 +51,12 @@ public class Device {
         this.securityLevel = securityLevel;
     }
 
-    public Double getScore() {
-        return score;
+    public List<Task> getTasks() {
+        return tasks;
     }
 
-    public void setScore(Double score) {
-        this.score = score;
+    public void setTasks(List<Task> tasks) {
+        this.tasks = tasks;
     }
 
     @Override

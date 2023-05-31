@@ -18,7 +18,7 @@ public class PublicController {
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/register")
     public Response register(@FormParam("username") String username, @FormParam("password") String password) throws CloneNotSupportedException {
-        if (userDao.existsByUsername(username)) {
+        if (username == null || username.isEmpty() || userDao.existsByUsername(username) || password == null || password.isEmpty()) {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
         var user = new User(username, password, "user");
