@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import uk.ac.ic.doc.fleet.service.ITaskService;
@@ -143,10 +144,18 @@ public class TaskService implements ITaskService {
                             + projectPath).split(" "));
             pb.directory(new File(fleetProperties.aggregatorPath()));
             var process = pb.start();
+            var out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
             // User score changes
-            try (var scanner = new Scanner(process.getErrorStream())) {
-                while (scanner.hasNextLine()) {
-                    var line = scanner.nextLine();
+            var fileMap = new HashMap<Integer, Integer>();
+            var pattern = Pattern.compile("(?m)^load weights of p-(\\d+):.*mnist_lenet_c(\\d+).weights$");
+            var matcher = pattern.matcher(out);
+            while (matcher.find()) {
+                fileMap.put(Integer.parseInt(matcher.group(1)) - 1, Integer.parseInt(matcher.group(2)));
+            }
+            try (var errScanner = new Scanner(process.getErrorStream())) {
+                while (errScanner.hasNextLine()) {
+                    var line = errScanner.nextLine();
                     final var key = "outlier_fractions";
                     if (line.startsWith(key)) {
                         var outlierFractions =
@@ -156,23 +165,35 @@ public class TaskService implements ITaskService {
                         LOG.info(key + '=' + Arrays.toString(outlierFractions));
                         for (int i = 0; i < outlierFractions.length; i++) {
                             double outlierFraction = outlierFractions[i];
-                            modelDao.findById(inputModels.get(i).getId()).ifPresent(model ->
-                                model.getProducerTasks().forEach(task -> {
-                                    var user = task.getUser();
-                                    if (user != null) {
-                                        if (outlierFraction > 1E-5) {
-                                            registry.counter("warning_counter", Tags.of("name", "outlier")).increment();
+                            if (fileMap.containsKey(i)) {
+                                var inputModelsIndex = fileMap.get(i);
+                                modelDao.findById(inputModels.get(inputModelsIndex).getId()).ifPresent(model ->
+                                    model.getProducerTasks().forEach(task -> {
+                                        var user = task.getUser();
+                                        if (user != null) {
+                                            if (outlierFraction > 1E-5) {
+                                                registry.counter("warning_counter", Tags.of("name", "outlier")).increment();
+                                            }
+                                            user.setScore(user.getScore() - outlierFraction);
+                                            if (user.getScore() < -1.0) {
+                                                user.setSecurityLevel(user.getSecurityLevel() - 1);
+                                                user.setScore(0.0);
+                                                registry.counter("warning_counter", Tags.of("name", "user_demotion")).increment();
+                                            } else if (user.getScore() > 1.0) {
+                                                user.setSecurityLevel(user.getSecurityLevel() + 1);
+                                                user.setScore(0.0);
+                                                registry.counter("warning_counter", Tags.of("name", "user_promotion")).increment();
+                                            }
+                                            userDao.save(user);
                                         }
-                                        user.setScore(user.getScore() - outlierFraction);
-                                        userDao.save(user);
-                                    }
-                                })
-                            );
+                                    })
+                                );
+                            }
                         }
                     }
                 }
             }
-            LOG.info(new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+            LOG.info(out);
             process.waitFor();
             var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
             var globalModel = new Model();
