@@ -6,7 +6,7 @@ import java.util.*;
 
 @Entity
 @Table(name = "device")
-public class Device {
+public class Device implements Cloneable {
     @Id
     @Column(name = "id", nullable = false)
     private UUID id = UUID.randomUUID();
@@ -72,4 +72,8 @@ public class Device {
         return Objects.hash(id);
     }
 
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
 }

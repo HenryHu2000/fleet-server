@@ -7,7 +7,7 @@ import java.util.*;
 
 @Entity
 @Table(name = "task")
-public class Task {
+public class Task implements Cloneable {
     @Id
     @Column(name = "id", nullable = false)
     private UUID id = UUID.randomUUID();
@@ -179,6 +179,11 @@ public class Task {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+        return super.clone();
     }
 
 }

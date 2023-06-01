@@ -43,6 +43,7 @@ public class Model {
 
     public Model() {
         consumerTasks = new ArrayList<>();
+        producerTasks = new ArrayList<>();
     }
 
     public UUID getId() {

@@ -27,4 +27,12 @@ public class PublicController {
         userDto.setPassword(null);
         return Response.ok(userDto).build();
    }
+
+    @GET
+    @PermitAll
+    @Produces(MediaType.TEXT_PLAIN)
+    @Path("/hello")
+    public String hello() {
+        return "Hello from RESTEasy Reactive";
+    }
 }
