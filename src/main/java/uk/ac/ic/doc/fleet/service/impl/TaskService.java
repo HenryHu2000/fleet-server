@@ -1,26 +1,27 @@
 package uk.ac.ic.doc.fleet.service.impl;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import io.quarkus.arc.Lock;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
+import org.apache.commons.io.FileUtils;
 import org.jboss.logging.Logger;
 import uk.ac.ic.doc.fleet.config.FleetProperties;
 import uk.ac.ic.doc.fleet.dao.*;
 import uk.ac.ic.doc.fleet.entity.*;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayDeque;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import uk.ac.ic.doc.fleet.service.ITaskService;
 
@@ -127,10 +128,12 @@ public class TaskService implements ITaskService {
         if (projectOptional.isPresent() && projectOptional.get().getStatus().equals(Status.RUNNING)) {
             var project = projectOptional.get();
             String projectPath = '/' + project.getName() + '/';
+            String fullProjectPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
+            FileUtils.deleteDirectory(new File(fullProjectPath));
             var inputModels = serverTask.getInputModels();
             for (int i = 0; i < inputModels.size(); i++) {
                 var model = inputModels.get(i);
-                var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath + "/mnist_lenet_c" + i + ".weights/";
+                var modelPath = fullProjectPath + "/mnist_lenet_c" + i + ".weights/";
                 Files.createDirectories(Paths.get(modelPath));
                 Files.write(Paths.get(modelPath + "/_ree"), model.getRee());
                 Files.write(Paths.get(modelPath + "/_tee"), model.getTee());
@@ -140,6 +143,35 @@ public class TaskService implements ITaskService {
                             + projectPath).split(" "));
             pb.directory(new File(fleetProperties.aggregatorPath()));
             var process = pb.start();
+            // User score changes
+            try (var scanner = new Scanner(process.getErrorStream())) {
+                while (scanner.hasNextLine()) {
+                    var line = scanner.nextLine();
+                    final var key = "outlier_fractions";
+                    if (line.startsWith(key)) {
+                        var outlierFractions =
+                                Arrays.stream(line.substring(key.length() + 2, line.length() - 1).split(", "))
+                                        .mapToDouble(Double::parseDouble)
+                                        .toArray();
+                        LOG.info(key + '=' + Arrays.toString(outlierFractions));
+                        for (int i = 0; i < outlierFractions.length; i++) {
+                            double outlierFraction = outlierFractions[i];
+                            modelDao.findById(inputModels.get(i).getId()).ifPresent(model ->
+                                model.getProducerTasks().forEach(task -> {
+                                    var user = task.getUser();
+                                    if (user != null) {
+                                        if (outlierFraction > 1E-5) {
+                                            registry.counter("warning_counter", Tags.of("name", "outlier")).increment();
+                                        }
+                                        user.setScore(user.getScore() - outlierFraction);
+                                        userDao.save(user);
+                                    }
+                                })
+                            );
+                        }
+                    }
+                }
+            }
             LOG.info(new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
             process.waitFor();
             var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
