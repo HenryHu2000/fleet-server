@@ -56,15 +56,7 @@ public class TaskService implements ITaskService {
         if (supertaskOptional.isPresent() && supertaskOptional.get().getProject().getStatus().equals(Status.RUNNING)) {
             var clientSupertask = supertaskOptional.get();
             var project = clientSupertask.getProject();
-            if (project.getRound() >= project.getMaxRounds()) {
-                project.setStatus(Status.COMPLETED);
-                projectDao.save(project);
-                for (var task: project.getTasks()) {
-                    if (task.getStatus().equals(Status.RUNNING)) {
-                        task.setStatus(Status.COMPLETED);
-                        taskDao.save(task);
-                    }
-                }
+            if (project.getStatus().equals(Status.COMPLETED)) {
                 return Optional.empty();
             }
 
@@ -132,77 +124,86 @@ public class TaskService implements ITaskService {
             String fullProjectPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
             FileUtils.deleteDirectory(new File(fullProjectPath));
             var inputModels = serverTask.getInputModels();
-            for (int i = 0; i < inputModels.size(); i++) {
-                var model = inputModels.get(i);
-                var modelPath = fullProjectPath + "/mnist_lenet_c" + i + ".weights/";
-                Files.createDirectories(Paths.get(modelPath));
-                Files.write(Paths.get(modelPath + "/_ree"), model.getRee());
-                Files.write(Paths.get(modelPath + "/_tee"), model.getTee());
-            }
-            ProcessBuilder pb = new ProcessBuilder(
-                    ("host/secure_aggregation_host server model_aggregation -pp_start 6 -pp_end 8 -ss 1 cfg/mnist_lenet.cfg ./results/mnist/"
-                            + projectPath).split(" "));
-            pb.directory(new File(fleetProperties.aggregatorPath()));
-            var process = pb.start();
-            var out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            byte[] avgReeBytes;
+            byte[] avgTeeBytes;
+            if (inputModels.size() == 1) {
+                avgReeBytes = inputModels.get(0).getRee();
+                avgTeeBytes = inputModels.get(0).getTee();
+            } else {
+                for (int i = 0; i < inputModels.size(); i++) {
+                    var model = inputModels.get(i);
+                    var modelPath = fullProjectPath + "/mnist_lenet_c" + i + ".weights/";
+                    Files.createDirectories(Paths.get(modelPath));
+                    Files.write(Paths.get(modelPath + "/_ree"), model.getRee());
+                    Files.write(Paths.get(modelPath + "/_tee"), model.getTee());
+                }
+                ProcessBuilder pb = new ProcessBuilder(
+                        ("host/secure_aggregation_host server model_aggregation -pp_start 6 -pp_end 8 -ss 1 cfg/mnist_lenet.cfg ./results/mnist/"
+                                + projectPath).split(" "));
+                pb.directory(new File(fleetProperties.aggregatorPath()));
+                var process = pb.start();
+                var out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
-            // User score changes
-            var fileMap = new HashMap<Integer, Integer>();
-            var pattern = Pattern.compile("(?m)^load weights of p-(\\d+):.*mnist_lenet_c(\\d+).weights$");
-            var matcher = pattern.matcher(out);
-            while (matcher.find()) {
-                fileMap.put(Integer.parseInt(matcher.group(1)) - 1, Integer.parseInt(matcher.group(2)));
-            }
-            try (var errScanner = new Scanner(process.getErrorStream())) {
-                while (errScanner.hasNextLine()) {
-                    var line = errScanner.nextLine();
-                    final var key = "outlier_fractions";
-                    if (line.startsWith(key)) {
-                        var outlierFractions =
-                                Arrays.stream(line.substring(key.length() + 2, line.length() - 1).split(", "))
-                                        .mapToDouble(Double::parseDouble)
-                                        .toArray();
-                        LOG.info(key + '=' + Arrays.toString(outlierFractions));
-                        for (int i = 0; i < outlierFractions.length; i++) {
-                            double outlierFraction = outlierFractions[i];
-                            if (fileMap.containsKey(i)) {
-                                var inputModelsIndex = fileMap.get(i);
-                                modelDao.findById(inputModels.get(inputModelsIndex).getId()).ifPresent(model ->
-                                    model.getProducerTasks().forEach(task -> {
-                                        var user = task.getUser();
-                                        if (user != null) {
-                                            if (outlierFraction > 1E-5) {
-                                                registry.counter("warning_counter", Tags.of("name", "outlier")).increment();
+                // User score changes
+                var fileMap = new HashMap<Integer, Integer>();
+                var pattern = Pattern.compile("(?m)^load weights of p-(\\d+):.*mnist_lenet_c(\\d+).weights$");
+                var matcher = pattern.matcher(out);
+                while (matcher.find()) {
+                    fileMap.put(Integer.parseInt(matcher.group(1)) - 1, Integer.parseInt(matcher.group(2)));
+                }
+                try (var errScanner = new Scanner(process.getErrorStream())) {
+                    while (errScanner.hasNextLine()) {
+                        var line = errScanner.nextLine();
+                        final var key = "outlier_fractions";
+                        if (line.startsWith(key)) {
+                            var outlierFractions =
+                                    Arrays.stream(line.substring(key.length() + 2, line.length() - 1).split(", "))
+                                            .mapToDouble(Double::parseDouble)
+                                            .toArray();
+                            LOG.info(key + '=' + Arrays.toString(outlierFractions));
+                            for (int i = 0; i < outlierFractions.length; i++) {
+                                double outlierFraction = outlierFractions[i];
+                                if (fileMap.containsKey(i)) {
+                                    var inputModelsIndex = fileMap.get(i);
+                                    modelDao.findById(inputModels.get(inputModelsIndex).getId()).ifPresent(model ->
+                                        model.getProducerTasks().forEach(task -> {
+                                            var user = task.getUser();
+                                            if (user != null) {
+                                                if (outlierFraction > 1E-5) {
+                                                    registry.counter("warning_counter", Tags.of("name", "outlier")).increment();
+                                                }
+                                                user.setScore(user.getScore() - outlierFraction);
+                                                if (user.getScore() < -1.0) {
+                                                    user.setSecurityLevel(user.getSecurityLevel() - 1);
+                                                    user.setScore(0.0);
+                                                    registry.counter("warning_counter", Tags.of("name", "user_demotion")).increment();
+                                                } else if (user.getScore() > 1.0) {
+                                                    user.setSecurityLevel(user.getSecurityLevel() + 1);
+                                                    user.setScore(0.0);
+                                                    registry.counter("warning_counter", Tags.of("name", "user_promotion")).increment();
+                                                }
+                                                userDao.save(user);
                                             }
-                                            user.setScore(user.getScore() - outlierFraction);
-                                            if (user.getScore() < -1.0) {
-                                                user.setSecurityLevel(user.getSecurityLevel() - 1);
-                                                user.setScore(0.0);
-                                                registry.counter("warning_counter", Tags.of("name", "user_demotion")).increment();
-                                            } else if (user.getScore() > 1.0) {
-                                                user.setSecurityLevel(user.getSecurityLevel() + 1);
-                                                user.setScore(0.0);
-                                                registry.counter("warning_counter", Tags.of("name", "user_promotion")).increment();
-                                            }
-                                            userDao.save(user);
-                                        }
-                                    })
-                                );
+                                        })
+                                    );
+                                }
                             }
                         }
                     }
                 }
+                LOG.info(out);
+                process.waitFor();
+                var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
+                var avgReeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_ree");
+                var avgTeeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_tee");
+                avgReeBytes = Files.readAllBytes(avgReeFile);
+                avgTeeBytes = Files.readAllBytes(avgTeeFile);
+                Files.delete(avgReeFile);
+                Files.delete(avgTeeFile);
             }
-            LOG.info(out);
-            process.waitFor();
-            var modelPath = fleetProperties.aggregatorPath() + "/results/mnist/" + projectPath;
             var globalModel = new Model();
-            var avgReeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_ree");
-            var avgTeeFile = Paths.get(modelPath + "/mnist_lenet_averaged.weights_tee");
-            globalModel.setRee(Files.readAllBytes(avgReeFile));
-            globalModel.setTee(Files.readAllBytes(avgTeeFile));
-            Files.delete(avgReeFile);
-            Files.delete(avgTeeFile);
+            globalModel.setRee(avgReeBytes);
+            globalModel.setTee(avgTeeBytes);
 
             modelDao.save(globalModel);
             serverTask.setProject(project);
@@ -210,6 +211,16 @@ public class TaskService implements ITaskService {
             serverTask.getOutputModels().add(globalModel);
             taskDao.save(serverTask);
             project.setRound(project.getRound() + 1);
+            if (project.getRound() >= project.getMaxRounds()) {
+                project.setStatus(Status.COMPLETED);
+                projectDao.save(project);
+                for (var task: project.getTasks()) {
+                    if (task.getStatus().equals(Status.RUNNING)) {
+                        task.setStatus(Status.COMPLETED);
+                        taskDao.save(task);
+                    }
+                }
+            }
             project.setCurrentModel(globalModel);
             projectDao.save(project);
 

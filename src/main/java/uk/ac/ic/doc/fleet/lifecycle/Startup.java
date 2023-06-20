@@ -17,7 +17,11 @@ public class Startup {
     private UserDao userDao;
     @Transactional
     public void loadUsers(@Observes StartupEvent evt) {
-        userDao.save(new User("admin", "admin", "admin"));
-        userDao.save(new User("user", "user", "user"));
+        if (!userDao.existsByUsername("admin")) {
+            userDao.save(new User("admin", "admin", "admin"));
+        }
+        if (!userDao.existsByUsername("user")) {
+            userDao.save(new User("user", "user", "user"));
+        }
     }
 }
