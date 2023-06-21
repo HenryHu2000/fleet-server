@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FLEET Monitor</title>
+    <script type="text/javascript" src="/jsonview.js"></script>
+    <script type="text/javascript" src="/timelines-chart.min.js"></script>
+    <script type="text/javascript" src="/d3.js"></script>
+</head>
+<body>
+<form>
+    <label for="project-id">Project ID:</label><br>
+    <input type="number" id="project-id" name="project-id"><br><br>
+    <input type="checkbox" id="auto-refresh" name="auto-refresh">
+    <label for="vehicle1"> Auto Refresh</label><br>
+    <input type="button" onclick="lookupProject()" value="View">
+    <input type="button" onclick="pauseProject()" value="Pause">
+    <input type="button" onclick="resumeProject()" value="Resume"><br><br>
+</form>
+<div class="timelines"></div>
+<div class="jsonview"></div>
+<script type="text/javascript">
+    let lastTree = null;
+    let lastChart = null;
+    const lookupProject = () => {
+        fetch('/api/admin/lookup-project/' + document.getElementById("project-id").value)
+            .then((res) => {
+                return res.text();
+            })
+            .then((data) => {
+                if (data) {
+                    // jsonview
+                    if (lastTree) {
+                        jsonview.destroy(lastTree);
+                    }
+                    const tree = jsonview.create(data);
+                    jsonview.render(tree, document.querySelector('.jsonview'));
+                    jsonview.expand(tree);
+                    lastTree = tree;
+                    // timelines-chart
+                    const project = JSON.parse(data);
+                    const group = {group: project.name, data: []};
+                    const map = {};
+                    for (const task of project.tasks) {
+                        if (task.device) {
+                            const device = task.device.id;
+                            if (!map[device]) {
+                                map[device] = [];
+                            }
+                            map[device].push({
+                                timeRange: [task.dateCreated, task.dateModified],
+                                val: task.round
+                            },);
+                        }
+                    }
+                    for (key in map) {
+                        group.data.push({label: key, data: map[key]});
+                    }
+                    if (!lastChart) {
+                        lastChart = TimelinesChart()(document.querySelector('.timelines'))
+                            .zScaleLabel('Round');
+                    }
+                    lastChart.zColorScale(d3.scaleSequential()
+                        .domain([0, project.maxRounds])
+                        .interpolator(d3.interpolateRdYlGn)
+                    );
+                    lastChart.data([group]);
+                    lastChart.refresh();
+                }
+            })
+            .catch((err) => {
+                console.log(err);
+            });
+    };
+    const pauseProject = () => {
+        fetch('/api/admin/pause-project/' + document.getElementById("project-id").value,
+            {
+                method: "POST"
+            });
+    };
+    const resumeProject = () => {
+        fetch('/api/admin/resume-project/' + document.getElementById("project-id").value,
+            {
+                method: "POST"
+            });
+    };
+    (() => {
+        setInterval(() => {
+            if (document.getElementById("auto-refresh").checked) {
+                lookupProject();
+            }
+        }, 5000);
+    })();
+</script>
+</body>
+</html>
