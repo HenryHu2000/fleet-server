@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FLEET Project Viewer</title>
+    <script type="text/javascript" src="/jsonview.js"></script>
+    <script type="text/javascript" src="/timelines-chart.min.js"></script>
+    <script type="text/javascript" src="/d3.js"></script>
+</head>
+<body>
+<form>
+    <label for="project_id">Project ID:</label><br>
+    <input type="number" id="project_id" name="project_id"><br><br>
+    <input type="submit" onclick="return lookupProject(event)" value="Submit">
+</form>
+<div class="timelines"></div>
+<div class="jsonview"></div>
+<script type="text/javascript">
+    var lastTree = null;
+    var chart = null;
+    const lookupProject = (e) => {
+        e.preventDefault();
+        fetch('/api/admin/lookup-project/' + document.getElementById("project_id").value)
+            .then((res)=> {
+                return res.text();
+            })
+            .then((data) => {
+                // jsonview
+                if (lastTree) {
+                    jsonview.destroy(lastTree);
+                }
+                const tree = jsonview.create(data);
+                jsonview.render(tree, document.querySelector('.jsonview'));
+                jsonview.expand(tree);
+                lastTree = tree;
+                // timelines-chart
+                const project = JSON.parse(data);
+                const group = {group: project.name, data: []};
+                const map = {};
+                for (const task of project.tasks) {
+                    if (task.device) {
+                        const device = task.device.id;
+                        if (!map[device]) {
+                            map[device] = [];
+                        }
+                        map[device].push({
+                            timeRange: [task.dateCreated, task.dateModified],
+                            val: task.round
+                        },);
+                    }
+                }
+                for (key in map) {
+                    group.data.push({label: key, data: map[key]});
+                }
+                if (!chart) {
+                    chart = TimelinesChart()(document.querySelector('.timelines'))
+                        .zScaleLabel('Round');
+                }
+                chart.zColorScale(d3.scaleSequential()
+                    .domain([0, project.maxRounds])
+                    .interpolator(d3.interpolateRdYlGn)
+                );
+                chart.data([group]);
+                chart.refresh();
+            })
+            .catch((err) => {
+                console.log(err);
+            })
+    };
+</script>
+</body>
+</html>
