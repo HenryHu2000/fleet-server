@@ -56,7 +56,7 @@ public class TaskService implements ITaskService {
         if (supertaskOptional.isPresent() && supertaskOptional.get().getProject().getStatus().equals(Status.RUNNING)) {
             var clientSupertask = supertaskOptional.get();
             var project = clientSupertask.getProject();
-            if (project.getStatus().equals(Status.COMPLETED)) {
+            if (project.getRound() >= project.getMaxRounds()) {
                 return Optional.empty();
             }
 
@@ -211,21 +211,19 @@ public class TaskService implements ITaskService {
             serverTask.getOutputModels().add(globalModel);
             taskDao.save(serverTask);
             project.setRound(project.getRound() + 1);
+            project.setCurrentModel(globalModel);
+            var newTask = buildTask(project, globalModel);
+            taskDao.save(newTask);
             if (project.getRound() >= project.getMaxRounds()) {
-                project.setStatus(Status.COMPLETED);
-                projectDao.save(project);
                 for (var task: project.getTasks()) {
                     if (task.getStatus().equals(Status.RUNNING)) {
                         task.setStatus(Status.COMPLETED);
                         taskDao.save(task);
                     }
                 }
+                project.setStatus(Status.COMPLETED);
             }
-            project.setCurrentModel(globalModel);
             projectDao.save(project);
-
-            var newTask = buildTask(project, globalModel);
-            taskDao.save(newTask);
             var projectDto = new Project();
             projectDto.setId(project.getId());
             newTask.setProject(projectDto);
