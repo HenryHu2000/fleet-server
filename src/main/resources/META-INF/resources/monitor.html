@@ -17,6 +17,10 @@
     <input type="button" onclick="resumeProject()" value="Resume"><br><br>
 </form>
 <div class="timelines"></div>
+<form>
+    <input type="button" onclick="expandJson()" value="Expand">
+    <input type="button" onclick="collapseJson()" value="Collapse">
+</form>
 <div class="jsonview"></div>
 <script type="text/javascript">
     let lastTree = null;
@@ -34,7 +38,6 @@
                     }
                     const tree = jsonview.create(data);
                     jsonview.render(tree, document.querySelector('.jsonview'));
-                    jsonview.expand(tree);
                     lastTree = tree;
                     // timelines-chart
                     const project = JSON.parse(data);
@@ -82,6 +85,12 @@
             {
                 method: "POST"
             });
+    };
+    const expandJson = () => {
+        jsonview.expand(lastTree);
+    };
+    const collapseJson = () => {
+        jsonview.collapse(lastTree);
     };
     (() => {
         setInterval(() => {
