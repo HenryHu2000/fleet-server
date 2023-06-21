@@ -22,7 +22,7 @@ public class ProjectService implements IProjectService {
             var project = projectOptional.get();
             var projectDto = (Project) project.clone();
             var tasks = new ArrayList<Task>();
-            for (var task: projectDto.getTasks()) {
+            for (var task : projectDto.getTasks()) {
                 var taskDto = (Task) task.clone();
                 taskDto.setProject(null);
                 if (taskDto.getUser() != null) {
@@ -77,5 +77,16 @@ public class ProjectService implements IProjectService {
         modelDto.setConsumerTasks(null);
         modelDto.setProducerTasks(null);
         return modelDto;
+    }
+
+    public Optional<Status> setProjectStatus(Long id, Status status) {
+        var projectOptional = projectDao.findById(id);
+        if (projectOptional.isPresent()) {
+            var project = projectOptional.get();
+            project.setStatus(status);
+            projectDao.save(project);
+            return Optional.of(project.getStatus());
+        }
+        return Optional.empty();
     }
 }

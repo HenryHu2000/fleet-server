@@ -11,6 +11,7 @@ import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import uk.ac.ic.doc.fleet.dao.ProjectDao;
 import uk.ac.ic.doc.fleet.entity.Project;
+import uk.ac.ic.doc.fleet.entity.Status;
 import uk.ac.ic.doc.fleet.entity.Task;
 import uk.ac.ic.doc.fleet.service.IProjectService;
 import uk.ac.ic.doc.fleet.service.ITaskService;
@@ -53,6 +54,8 @@ public class AdminController {
 
     @GET
     @Path("/lookup-project/{id}")
+    @RolesAllowed("admin")
+    @Produces(MediaType.APPLICATION_JSON)
     public Response lookupProject(@PathParam(value = "id") Long id) throws CloneNotSupportedException {
         var projectOptional = projectService.getProjectOverview(id);
         if (projectOptional.isPresent()) {
@@ -62,4 +65,29 @@ public class AdminController {
         return Response.status(Response.Status.NOT_FOUND).build();
     }
 
+    @POST
+    @Path("/pause-project/{id}")
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response pauseProject(@PathParam(value = "id") Long id) {
+        var statusOptional = projectService.setProjectStatus(id, Status.PAUSED);
+        if (statusOptional.isPresent()) {
+            var status = statusOptional.get();
+            return Response.ok(status).build();
+        }
+        return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    @POST
+    @Path("/resume-project/{id}")
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response resumeProject(@PathParam(value = "id") Long id) {
+        var statusOptional = projectService.setProjectStatus(id, Status.RUNNING);
+        if (statusOptional.isPresent()) {
+            var status = statusOptional.get();
+            return Response.ok(status).build();
+        }
+        return Response.status(Response.Status.NOT_FOUND).build();
+    }
 }

@@ -10,17 +10,18 @@
 <form>
     <label for="project_id">Project ID:</label><br>
     <input type="number" id="project_id" name="project_id"><br><br>
-    <input type="submit" onclick="return lookupProject(event)" value="Submit">
+    <input type="button" onclick="lookupProject()" value="View">
+    <input type="button" onclick="pauseProject()" value="Pause">
+    <input type="button" onclick="resumeProject()" value="Resume">
 </form>
 <div class="timelines"></div>
 <div class="jsonview"></div>
 <script type="text/javascript">
     var lastTree = null;
     var chart = null;
-    const lookupProject = (e) => {
-        e.preventDefault();
+    const lookupProject = () => {
         fetch('/api/admin/lookup-project/' + document.getElementById("project_id").value)
-            .then((res)=> {
+            .then((res) => {
                 return res.text();
             })
             .then((data) => {
@@ -64,7 +65,19 @@
             })
             .catch((err) => {
                 console.log(err);
-            })
+            });
+    };
+    const pauseProject = () => {
+        fetch('/api/admin/pause-project/' + document.getElementById("project_id").value,
+            {
+                method: "POST"
+            });
+    };
+    const resumeProject = () => {
+        fetch('/api/admin/resume-project/' + document.getElementById("project_id").value,
+            {
+                method: "POST"
+            });
     };
 </script>
 </body>
