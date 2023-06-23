@@ -68,6 +68,21 @@
                     );
                     lastChart.data([group]);
                     lastChart.refresh();
+                    // Title
+                    const titleText = "FLEET Monitor";
+                    let titleSymbol = "";
+                    switch (project.status) {
+                        case "RUNNING":
+                            titleSymbol = "▶️";
+                            break;
+                        case "PAUSED":
+                            titleSymbol = "⏸️";
+                            break;
+                        case "COMPLETED":
+                            titleSymbol = "⏹️";
+                            break;
+                    }
+                    document.title = `${titleSymbol} FLEET Monitor`;
                 }
             })
             .catch((err) => {
